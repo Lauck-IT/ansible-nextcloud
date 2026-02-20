@@ -95,6 +95,7 @@
       - "{{ ((ansible_facts.distribution_major_version|int) <= 7) | ternary('libselinux-python','python3-libselinux') }}"
       - "{{ ((ansible_facts.distribution_major_version|int) <= 7) | ternary('policycoreutils-python','python3-policycoreutils') }}"
       - bzip2
+      - unzip
       - nginx
       - openssl
       - "{{ ((ansible_facts.distribution_major_version|int) <= 7) | ternary('MySQL-python','python3-PyMySQL') }}"
