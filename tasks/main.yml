@@ -14,6 +14,9 @@
     - https://rpms.remirepo.net/RPM-GPG-KEY-remi2021
     - https://rpms.remirepo.net/RPM-GPG-KEY-remi2022
     - https://rpms.remirepo.net/RPM-GPG-KEY-remi2023
+    - https://rpms.remirepo.net/RPM-GPG-KEY-remi2024
+    - https://rpms.remirepo.net/RPM-GPG-KEY-remi2025
+    - https://rpms.remirepo.net/RPM-GPG-KEY-remi2026
     #- https://getfedora.org/static/fedora.gpg
   when: nextcloud_manage_yum_repos
 
@@ -57,6 +60,19 @@
     value: "0"
   when: nextcloud_manage_yum_repos and ansible_distribution_major_version|int <= 7
   loop: "{{ php_repos.stdout_lines }}"
+
+- name: Ensure the crb repository is enabled
+  community.general.dnf_config_manager:
+    name: crb
+    state: enabled
+  when: nextcloud_manage_yum_repos and ansible_distribution_major_version|int >= 8
+
+- name: Reset PHP module
+  shell: |
+    dnf module reset -y php
+  args:
+    warn: false
+  changed_when: no
 
 - name: ensure deprecated php module is absent
   yum:
