@@ -32,6 +32,7 @@
     regexp: '^{{ item.option }}'
     line: '{{ item.option }}={{ item.value }}'
     insertafter: '\[mysqld\]'
+    create: true
   with_items:
     - { option: ignore-db-dir, value: lost+found }
     - { option: innodb_file_per_table, value: 1 }
@@ -45,18 +46,18 @@
 
 - name: add missing indices
   command: '{{ nextcloud_web_root }}/occ db:add-missing-indices'
-  become: yes
+  become: true
   become_user: nginx
   changed_when: no
 
 - name: convert columns to big int
   command: '{{ nextcloud_web_root }}/occ db:convert-filecache-bigint --no-interaction'
-  become: yes
+  become: true
   become_user: nginx
   changed_when: no
 
 - name: add mimetypes to database
   command: '{{ nextcloud_web_root }}/occ maintenance:mimetype:update-db'
-  become: yes
+  become: true
   become_user: nginx
   changed_when: no

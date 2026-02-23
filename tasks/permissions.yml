@@ -16,7 +16,7 @@
     state: directory
   with_items:
     - path: '{{ nextcloud_web_root }}'
-      recurse: yes
+      recurse: true
     - path: '{{ nextcloud_data_root }}'
 
 - name: ensure SELinux file context mapping definitions are correct
@@ -50,14 +50,14 @@
   sefcontext:
     target: '{{ nextcloud_fastcgi_temp_dir }}(/.*)?'
     setype: httpd_cache_t
-    reload: yes
+    reload: true
   when: nextcloud_fastcgi_temp_dir is defined
 
 - name: ensure sebooleans are set
   seboolean:
     name: '{{ item }}'
-    state: yes
-    persistent: yes
+    state: true
+    persistent: true
   with_items:
     - 'httpd_can_network_connect'
     - 'httpd_execmem'
