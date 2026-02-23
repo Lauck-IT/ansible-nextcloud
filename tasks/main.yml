@@ -139,6 +139,17 @@
   package_facts:
     manager: "auto"
 
+- name: Template MariaDB repository
+  template:
+    src: MariaDB.repo.j2
+    dest: /etc/yum.repos.d/MariaDB.repo
+  when: mariadb_version is defined and mariadb_version|length > 0
+
+- name: Reload daemon
+  systemd_service:
+    daemon_reload: true
+  when: mariadb_version is defined and mariadb_version|length > 0
+
 - name: ensure mariadb-server is installed
   yum:
     name: mariadb-server
