@@ -78,6 +78,7 @@
   shell: |
     php -v
   register: runtime_php_version
+  changed_when: false
   ignore_errors: true
 
 - name: Set PHP search value
@@ -259,6 +260,10 @@
         option: "opcache.file_cache",
         value: "{{ nextcloud_php_opcache_file_cache }}",
       }
+    - {
+        option: "opcache.interned_strings_buffer",
+        value: "{{ nextcloud_php_opcache_interned_strings_buffer }}",
+      }
   notify:
     - reload php-fpm
     - reload nginx
@@ -386,7 +391,7 @@
     creates: "{{ nextcloud_ssl_cert }}"
   notify:
     - reload nginx
-  when: nextcloud_use_https and not nextcloud_ssl_skip_gen
+  when: nextcloud_ssl_gen
 
 - name: ensure opcache settings are correct
   lineinfile:

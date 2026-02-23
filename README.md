@@ -24,10 +24,9 @@ nextcloud_repo_url: https://download.nextcloud.com/server/releases # where to ge
 nextcloud_version: latest-18 # version to install, choose any from https://download.nextcloud.com/server/releases/ without the file extension (default: latest)
 php_version: "7.4" # PHP version to install (default: "7.3")
 mariadb_version: "10.4" # MariaDB version to install (default: "10.4")
-nextcloud_use_https: true # set to false if you want to run your instance behind a loadbalancer with ssl-termination
 nextcloud_ssl_cert: /etc/nginx/nextcloud.crt # ssl cert path
 nextcloud_ssl_key: /etc/nginx/nextcloud.key # ssl key path
-nextcloud_ssl_skip_gen: false # set to true if you do NOT want role to handle ssl cert generation (then you must provide nextcloud_ssl_* configured files)
+nextcloud_ssl_gen: false # set to true if you do NOT want role to handle ssl cert generation (then you must provide nextcloud_ssl_* configured files)
 nextcloud_ssl_subject: '/C=CH/ST=Lucerne/L=Lucerne/CN={{ nextcloud_domain }}' # subject for self-signed ssl cert generation
 nextcloud_web_root: /var/www/nextcloud # web root
 nextcloud_data_root: '/nextcloud/data'
@@ -57,7 +56,6 @@ nextcloud_config_options: # additional options to set in config.php
  - { option: mail_smtpport, value: "'465'" }
  - { option: mail_smtpname, value: "'john.smith'" }
  - { option: mail_smtppassword, value: "'secret123'" }
-nextcloud_crypto_config: intermediate  # modern, intermediate or old crypto config
 
 ```
 
