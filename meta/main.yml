@@ -1,14 +1,15 @@
 ---
 galaxy_info:
-  author: rbicker
+  author: rbicker, Felix von Mellenthin
   description: install or upgrade nextcloud
   license: MIT
-  min_ansible_version: 2.5
+  min_ansible_version: "2.16"
   platforms:
     - name: EL
       versions:
-        - 7
-        - 8
+        - "7"
+        - "8"
+        - "9"
   galaxy_tags:
     - nextcloud
 dependencies: []
