@@ -3,29 +3,49 @@ upstream php-handler {
     #server unix:/var/run/php-fpm/php-fpm.sock;
 }
 
+map $arg_v $asset_immutable {
+    "" "";
+    default ", immutable";
+}
+
 server {
-    listen {{ nextcloud_https_port }} ssl http2 default_server;
+    listen {{ nextcloud_https_port }} ssl http2;
     server_name {{ nextcloud_domain }};
+
+    # Path to the root of your installation
+    root {{ nextcloud_web_root }};
     
     ssl_certificate {{ nextcloud_ssl_cert }};
     ssl_certificate_key {{ nextcloud_ssl_key }};
+
+    # Prevent nginx HTTP Server Detection
+    server_tokens off;
 
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
     ssl_session_tickets off;
 
-{% if nextcloud_crypto_config == 'modern' %}
+    # set max upload size
+    client_max_body_size {{ nextcloud_max_upload_size }};
+    client_body_timeout 300s;
+    fastcgi_buffers 64 4K;
+
+    # Enable gzip but do not remove ETag headers
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 4;
+    gzip_min_length 256;
+    gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
+    gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
+
+    # Uncomment if your server is build with the ngx_pagespeed module
+    # This module is currently not supported.
+    #pagespeed off;
+
+    client_body_buffer_size 512k;
+
     ssl_protocols TLSv1.3;
     ssl_prefer_server_ciphers off;
-{% elif nextcloud_crypto_config == 'old' %}
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2{% if ansible_distribution_major_version|int >= 8 %} TLSv1.3{% endif %};
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA;
-    ssl_prefer_server_ciphers on;
-{% else %}
-    ssl_protocols TLSv1.2{% if ansible_distribution_major_version|int >= 8 %} TLSv1.3{% endif %};
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
-{% endif %}
 
     # Add headers to serve security related headers
     # Before enabling Strict-Transport-Security headers please read into this
@@ -41,7 +61,7 @@ server {
     # could take several months.
 
 {% if nextcloud_fastcgi_temp_dir is defined %}
-   fastcgi_temp_path {{ nextcloud_fastcgi_temp_dir }} 1 2;
+    fastcgi_temp_path {{ nextcloud_fastcgi_temp_dir }} 1 2;
 {% endif %}
     proxy_buffering off;
     client_body_temp_path {{ nextcloud_upload_tmp_dir }};
@@ -51,14 +71,33 @@ server {
     add_header X-Download-Options "noopen" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Permitted-Cross-Domain-Policies "none" always;
-    add_header X-Robots-Tag "none" always;
+    add_header X-Robots-Tag "noindex,nofollow" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
     # Remove X-Powered-By, which is an information leak
     fastcgi_hide_header X-Powered-By;
 
-    # Path to the root of your installation
-    root {{ nextcloud_web_root }};
+    # Set .mjs and .wasm MIME types
+    # Either include it in the default mime.types list
+    # and include that list explicitly or add the file extension
+    # only for Nextcloud like below:
+    include mime.types;
+    types {
+        text/javascript mjs;
+	    application/wasm wasm;
+    }
+
+    # Specify how to handle directories -- specifying `/index.php$request_uri`
+    # here as the fallback means that Nginx always exhibits the desired behaviour
+    # when a client requests a path that corresponds to a directory that exists
+    # on the server. In particular, if that directory contains an index.php file,
+    # that file is correctly served; if it doesn't, then the request is passed to
+    # the front-end controller. This consistent behaviour means that we don't need
+    # to specify custom rules for certain paths (e.g. images and other assets,
+    # `/updater`, `/ocs-provider`), and thus
+    # `try_files $uri $uri/ /index.php$request_uri`
+    # always provides the desired behaviour.
+    index index.php index.html /index.php$request_uri;
 
     location = /robots.txt {
         allow all;
@@ -72,92 +111,93 @@ server {
     #rewrite ^/.well-known/host-meta.json /public.php?service=host-meta-json
     # last;
 
-    location = /.well-known/carddav {
-      return 301 $scheme://$host/remote.php/dav;
-    }
-    location = /.well-known/caldav {
-      return 301 $scheme://$host/remote.php/dav;
-    }
-
-    # set max upload size
-    client_max_body_size {{ nextcloud_max_upload_size }};
-    fastcgi_buffers 64 4K;
-
-    # Enable gzip but do not remove ETag headers
-    gzip on;
-    gzip_vary on;
-    gzip_comp_level 4;
-    gzip_min_length 256;
-    gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
-    gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
-
-    # Uncomment if your server is build with the ngx_pagespeed module
-    # This module is currently not supported.
-    #pagespeed off;
-
-    location / {
-        rewrite ^ /index.php;
+    location = / {
+        if ( $http_user_agent ~ ^DavClnt ) {
+            return 302 /remote.php/webdav/$is_args$args;
+        }
     }
 
-    location ~ ^\/(?:build|tests|config|lib|3rdparty|templates|data)\/ {
-        deny all;
-    }
-    location ~ ^\/(?:\.|autotest|occ|issue|indie|db_|console) {
-        deny all;
+    # Make a regex exception for `/.well-known` so that clients can still
+    # access it despite the existence of the regex rule
+    # `location ~ /(\.|autotest|...)` which would otherwise handle requests
+    # for `/.well-known`.
+    location ^~ /.well-known {
+        # The rules in this block are an adaptation of the rules
+        # in `.htaccess` that concern `/.well-known`.
+
+        location = /.well-known/carddav { return 301 /remote.php/dav/; }
+        location = /.well-known/caldav  { return 301 /remote.php/dav/; }
+
+        location /.well-known/acme-challenge    { try_files $uri $uri/ =404; }
+        location /.well-known/pki-validation    { try_files $uri $uri/ =404; }
+
+        # Let Nextcloud's API for `/.well-known` URIs handle all other
+        # requests by passing them to the front-end controller.
+        return 301 /index.php$request_uri;
     }
 
-    location ~ ^\/(?:index|remote|public|cron|core\/ajax\/update|status|ocs\/v[12]|updater\/.+|oc[ms]-provider\/.+)\.php(?:$|\/) {
-        fastcgi_split_path_info ^(.+?\.php)(\/.*|)$;
+    location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/) {
+        return 404;
+    }
+    location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console) {
+        return 404;
+    }
+
+    location ~ \.php(?:$|/) {
+        # Required for legacy support
+        rewrite ^/(?!index|remote|public|cron|core\/ajax\/update|status|ocs\/v[12]|updater\/.+|ocs-provider\/.+|.+\/richdocumentscode(_arm64)?\/proxy) /index.php$request_uri;
+
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        set $path_info $fastcgi_path_info;
+
         try_files $fastcgi_script_name =404;
+
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_param PATH_INFO $fastcgi_path_info;
-        {% if nextcloud_use_https %}fastcgi_param HTTPS on;{% endif %}
-        # Avoid sending the security headers twice
-        fastcgi_param modHeadersAvailable true;
-        # Enable pretty urls
-        fastcgi_param front_controller_active true;
+        fastcgi_param PATH_INFO $path_info;
+        fastcgi_param HTTPS on;
+
+        fastcgi_param modHeadersAvailable true;         # Avoid sending the security headers twice
+        fastcgi_param front_controller_active true;     # Enable pretty urls
         fastcgi_pass php-handler;
+
         fastcgi_intercept_errors on;
-        fastcgi_request_buffering off;
+        fastcgi_request_buffering on;                   # Required as PHP-FPM does not support chunked transfer encoding and requires a valid ContentLength header.
+
+        # PHP-FPM 504 response timeouts
+        # Uncomment and increase these if facing timeout errors during large file uploads
+        #fastcgi_read_timeout 60s;
+        #fastcgi_send_timeout 60s;
+        #fastcgi_connect_timeout 60s;
+
+        fastcgi_max_temp_file_size 0;
     }
 
-    location ~ ^\/(?:updater|oc[ms]-provider)(?:$|\/) {
-        try_files $uri/ =404;
-        index index.php;
-    }
-
-    # Adding the cache control header for js, css and map files
-    # Make sure it is BELOW the PHP block
-    location ~ \.(?:css|js|woff2?|svg|gif|map)$ {
+    # Serve static files
+    location ~ \.(?:css|js|mjs|svg|gif|ico|jpg|png|webp|wasm|tflite|map|ogg|flac|mp4|webm)$ {
         try_files $uri /index.php$request_uri;
-        add_header Cache-Control "public, max-age=15778463";
-        # Add headers to serve security related headers (It is intended to
-        # have those duplicated to the ones above)
-        # Before enabling Strict-Transport-Security headers please read into
-        # this topic first.
-        #add_header Strict-Transport-Security "max-age=15768000; includeSubDomains; preload;" always;
-        #
-        # WARNING: Only add the preload option once you read about
-        # the consequences in https://hstspreload.org/. This option
-        # will add the domain to a hardcoded list that is shipped
-        # in all major browsers and getting removed from this list
-        # could take several months.
-        add_header Referrer-Policy "no-referrer" always;
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-Download-Options "noopen" always;
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-Permitted-Cross-Domain-Policies "none" always;
-        add_header X-Robots-Tag "none" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-
-        # Optional: Don't log access to assets
-        access_log off;
+        # HTTP response headers borrowed from Nextcloud `.htaccess`
+        add_header Cache-Control                     "public, max-age=15778463$asset_immutable";
+        add_header Referrer-Policy                   "no-referrer"       always;
+        add_header X-Content-Type-Options            "nosniff"           always;
+        add_header X-Frame-Options                   "SAMEORIGIN"        always;
+        add_header X-Permitted-Cross-Domain-Policies "none"              always;
+        add_header X-Robots-Tag                      "noindex, nofollow" always;
+        access_log off;     # Optional: Don't log access to assets
     }
 
-    location ~ \.(?:png|html|ttf|ico|jpg|jpeg|bcmap)$ {
+    location ~ \.(otf|woff2?)$ {
         try_files $uri /index.php$request_uri;
-        # Optional: Don't log access to other assets
-        access_log off;
+        expires 7d;         # Cache-Control policy borrowed from `.htaccess`
+        access_log off;     # Optional: Don't log access to assets
+    }
+
+    # Rule borrowed from `.htaccess`
+    location /remote {
+        return 301 /remote.php$request_uri;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php$request_uri;
     }
 }
