@@ -106,6 +106,7 @@
       - "{{ ((ansible_facts.distribution_major_version|int) <= 7) | ternary('policycoreutils-python','python3-policycoreutils') }}"
       - bzip2
       - unzip
+      - tar
       - nginx
       - openssl
       - "{{ ((ansible_facts.distribution_major_version|int) <= 7) | ternary('MySQL-python','python3-PyMySQL') }}"
