@@ -48,3 +48,4 @@
     - add missing indices
     - convert columns to big int
     - add mimetypes to database
+    - run database migrations

@@ -214,6 +214,11 @@
     name: "{{ nextcloud_mysql_db }}"
     login_user: root
     state: present
+  notify: 
+    - add missing indices
+    - convert columns to big int
+    - add mimetypes to database
+    - run database migrations
 
 - name: ensure database user {{ nextcloud_mysql_user }} exists and has all privileges on {{ nextcloud_mysql_db }}
   mysql_user:

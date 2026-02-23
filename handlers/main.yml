@@ -61,3 +61,9 @@
   become: true
   become_user: nginx
   changed_when: no
+
+- name: run database migrations
+  command: '{{ nextcloud_web_root }}/occ maintenance:repair --include-expensive'
+  become: true
+  become_user: nginx
+  changed_when: no
